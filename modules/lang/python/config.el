@@ -1,12 +1,10 @@
 ;;; lang/python/config.el -*- lexical-binding: t; -*-
 
-(defvar +python-ipython-repl-args '("-i" "--simple-prompt" "--no-color-info")
-  "CLI arguments to initialize ipython with when `+python/open-ipython-repl' is
-called.")
+(defvar +python-ipython-command '("ipython" "-i" "--simple-prompt" "--no-color-info")
+  "Command to initialize the ipython REPL for `+python/open-ipython-repl'.")
 
-(defvar +python-jupyter-repl-args '("--simple-prompt")
-  "CLI arguments to initialize 'jupiter console %s' with when
-`+python/open-ipython-repl' is called.")
+(defvar +python-jupyter-command '("jupyter" "console" "--simple-prompt")
+  "Command to initialize the jupyter REPL for `+python/open-jupyter-repl'.")
 
 (after! projectile
   (pushnew! projectile-project-root-files "setup.py" "requirements.txt"))
@@ -183,18 +181,19 @@ called.")
 
 
 (use-package! python-pytest
-  :defer t
+  :commands python-pytest-dispatch
   :init
   (map! :after python
         :localleader
         :map python-mode-map
         :prefix ("t" . "test")
+        "a" #'python-pytest
         "f" #'python-pytest-file-dwim
         "F" #'python-pytest-file
         "t" #'python-pytest-function-dwim
         "T" #'python-pytest-function
         "r" #'python-pytest-repeat
-        "p" #'python-pytest-popup))
+        "p" #'python-pytest-dispatch))
 
 
 ;;
@@ -268,6 +267,7 @@ called.")
                                 "~/.miniconda3"
                                 "~/anaconda3"
                                 "~/miniconda3"
+                                "~/opt/miniconda3"
                                 "/usr/bin/anaconda3"
                                 "/usr/local/anaconda3"
                                 "/usr/local/miniconda3"
@@ -288,7 +288,9 @@ called.")
 
 (use-package! poetry
   :when (featurep! +poetry)
-  :after python)
+  :after python
+  :init
+  (add-hook 'python-mode-hook #'poetry-tracking-mode))
 
 
 (use-package! cython-mode
@@ -311,8 +313,8 @@ called.")
 ;;
 ;;; LSP
 
-(when! (and (featurep! +lsp)
-            (not (featurep! :tools lsp +eglot)))
+(eval-when! (and (featurep! +lsp)
+                 (not (featurep! :tools lsp +eglot)))
 
   (use-package! lsp-python-ms
     :unless (featurep! +pyright)

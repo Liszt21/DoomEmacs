@@ -13,4 +13,5 @@
     (package! company-emacs-eclim :pin "222ddd48fcf0ee01592dec77c58e0cf3f2ea1100")))
 
 (when (featurep! +lsp)
-  (package! lsp-java :pin "260016236fa0520b5b6ec7f51ca2086288524cba"))
+  (unless (featurep! :tools lsp +eglot)
+    (package! lsp-java :pin "f43b00acd86801aff76c9cdc01f9d7f4b83bf14f")))

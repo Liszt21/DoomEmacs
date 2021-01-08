@@ -50,10 +50,8 @@ us know!
     - [[#installing-packages-from-external-sources][Installing packages from external sources]]
     - [[#pinning-packages-to-specific-commits][Pinning packages to specific commits]]
     - [[#disabling-packages][Disabling packages]]
-    - [[#changing-a-recipe-for-a-included-package][Changing a recipe for a included package]]
+    - [[#changing-a-recipe-for-an-included-package][Changing a recipe for an included package]]
     - [[#usingloading-local-packages][Using/loading local packages]]
-      - [[#adjust-your-load-path][Adjust your ~load-path~]]
-      - [[#local-repo][:local-repo]]
   - [[#configuring-doom][Configuring Doom]]
     - [[#configuring-packages][Configuring packages]]
     - [[#reloading-your-config][Reloading your config]]
@@ -313,13 +311,13 @@ process.
 Before moving on to installing Emacs et co, a few steps to prepare Windows for
 Emacs are necessary:
 
-1. *Create a ~HOME~ [[https://mywindowshub.com/how-to-edit-system-environment-variables-for-a-user-in-windows-10/][system environment variable]].*
+1. Create a ~HOME~ [[https://mywindowshub.com/how-to-edit-system-environment-variables-for-a-user-in-windows-10/][system environment variable]].
   
    Set it to =C:\Users\USERNAME\=, otherwise Emacs will treat
    =C:\Users\USERNAME\AppData\Roaming= as your ~HOME~, which will cause issues
    later.
 
-2. *Add =C:\Users\USERNAME\.emacs.d\bin= to your ~PATH~.*
+2. Add =C:\Users\USERNAME\.emacs.d\bin= to your ~PATH~.
 
    This way, you don't have to type all of =C:\Users\USERNAME\.emacs.d\bin\doom=
    every time you need to run this script (and you'll need to, often).
@@ -702,7 +700,7 @@ denoted by a plus prefix:
 
 #+BEGIN_SRC emacs-lisp
 (doom! :completion
-       (company +auto)
+       (company +childframe)
        :lang
        (csharp +unity)
        (org +brain +dragndrop +gnuplot +hugo +jupyter)
@@ -888,7 +886,7 @@ packages:
 ensure your changes take effect.
 #+end_quote
 
-*** Changing a recipe for a included package
+*** Changing a recipe for an included package
 If a Doom module installs package X from one place, but you'd like to install it
 from another (say, a superior fork), add a ~package!~ declaration for it in your
 =DOOMDIR/packages.el=. Your private declarations always have precedence over
@@ -914,40 +912,42 @@ changes.
 #+end_quote
 
 *** Using/loading local packages
-Say you have a local elisp package that you are developing, and want to
-"install" it for live testing. You have two options:
-
-**** Adjust your ~load-path~
-Emacs searches for packages in your ~load-path~. Add the path to your package
-and Emacs will find it when it tries to load it. e.g.
-
+Say you are developing an Emacs package locally and want to "install" it for
+live testing. To do this specify a ~:local-repo~ in that package's recipe:
 #+BEGIN_SRC elisp
-(add-load-path! "lisp/package")
+(package! my-package
+  :recipe (:local-repo "/path/to/my/package"))
+
+;; Relative paths are expanded to ~/.emacs.d/.local/straight/repos/{local-repo}
+;; or ~/.doom.d/{local-repo} -- the first that is found.
+(package! my-package
+  :recipe (:local-repo "my/package"))  ; looks for ~/.doom.d/my/package/my-package.el
+
+(package! my-package
+  :recipe (:local-repo "/path/to/my/package"
+
+           ;; By default, the package manager grabs all *.el files at the root
+           ;; of the project and nothing else. To include other files, or
+           ;; accommodate unconventional project structures, specify what :files
+           ;; you want:
+           :files ("*.el" "src/lisp/*.el")
+
+           ;; With ':no-byte-compile t' you can avoid having to run 'doom sync'
+           ;; every time you change the package.
+           :no-byte-compile t))
+#+END_SRC
+
+Alternatively, add the package's location to Emacs' ~load-path~. Do this if you
+don't need/care for autoload cookies or byte-compilation:
+#+BEGIN_SRC elisp
+;; Doom has modified `use-package's `:load-path' to expand relative paths from
+;; your DOOMDIR. e.g. ~/.doom.d/lisp/package
+(use-package my-package
+  :load-path "lisp/package")
 
 ;; or
 
-(use-package my-package
-  :load-path "/path/to/my/package")
-#+END_SRC
-
-**** :local-repo
-Alternatively, you can specify a ~:local-repo~ in a ~package!~'s ~:recipe~
-declaration:
-
-#+BEGIN_SRC elisp
-(package! my-package :recipe (:local-repo "/path/to/my/package"))
-
-;; Don't forget to use :files to include files in an unconventional project structure:
-(package! my-package
-  :recipe (:local-repo "/path/to/my/package"
-           :files ("*.el" "src/lisp/*.el")))
-
-;; It is recommended you use ':no-byte-compile t' as well, so you don't have to
-;; run `doom build -r` every time you make a change to your package.
-(package! my-package
-  :recipe (:local-repo "/path/to/my/package"
-           :files ("*.el" "src/lisp/*.el")
-           :no-byte-compile t))
+(add-load-path! "lisp/package")
 #+END_SRC
 
 #+begin_quote
@@ -1068,8 +1068,7 @@ Of course, an empty module isn't terribly useful, but it goes to show that nothi
   loaded when they are used.
 
 These are a few exceptional examples of a well-rounded module:
-
-+ [[file:/mnt/projects/conf/doom-emacs/modules/completion/company/README.org][:completion company]]
++ [[file:../modules/completion/company/README.org][:completion company]]
 
 The remainder of this guide will go over the technical details of a Doom module.
 
@@ -1177,7 +1176,7 @@ Placing this on top of a lisp form will do one of two things:
    =~/.emacs.d/.local/autoloads.el=, which is read very early in the startup
    process).
 2. Or copy that lisp form to Doom's autoload file verbatim (usually the case for
-   anything other then ~def*~ forms, like ~defun~ or ~defmacro~).
+   anything other than ~def*~ forms, like ~defun~ or ~defmacro~).
 
 Doom's autoload file is generated by scanning these files when you execute ~doom
 sync~.
@@ -1415,9 +1414,9 @@ org module documentation]] for details on how to add support for it.
 #+END_SRC
 
 These two lines are a common sight in Emacs configs, but they are unnecessary
-for Doom Emacs. We already use the more sophisticated =wsbutler= to manage
+for Doom Emacs. We already use the more sophisticated =ws-butler= to manage
 extraneous whitespace. However, you might have the impression that it isn't
-working. That's because =wsbutler= works in two unusual ways, meant to be less
+working. That's because =ws-butler= works in two unusual ways, meant to be less
 imposing than its alternatives:
 
 1. It only cleans up trailing whitespace /on lines that you've touched/ (but
@@ -1432,7 +1431,7 @@ imposing than its alternatives:
    However, if it's truly deliberate, ~M-x delete-trailing-whitespaces~ and ~M-x
    whitespace-cleanup~ are available to be called =deliberately=, instead.
 
-2. =wsbutler= replaces trailing whitespace and newlines with *virtual*
+2. =ws-butler= replaces trailing whitespace and newlines with *virtual*
    whitespace. This is whitespace that only exists in the Emacs buffer, but
    isn't actually written to the file.
 
@@ -1471,7 +1470,7 @@ provide tools to make this easier. Here are a few things you can try, first:
   issues that originate from upstream.
 
 + If you happen to know what module(s) are relevant to your issue, check their
-  documentation (press =<leader> h m= to jump to a module's documentation). Your
+  documentation (press =<leader> h d m= to jump to a module's documentation). Your
   issue may be documented.
 
 + If possible, see if the issue can be reproduced in vanilla Emacs (Emacs
@@ -1560,9 +1559,9 @@ and before the subcommand. This will be fixed eventually.
 Often, you may find it helpful for debugging to evaluate some Emacs Lisp. Here
 are couple things you can do:
 
-+ Use =M-;= (bound to ~eval-expression~),
++ Use =M-:= (bound to ~eval-expression~),
 + =SPC x= will open a scratch buffer. ~M-x emacs-lisp-mode~ will change it to
-  the appropriate major mode, then use ~+eval:region~ (=gr=) and ~+eval:buffer~
+  the appropriate major mode, then use ~+eval:region~ (=gr=) and ~+eval/buffer~
   (=gR=) to evaluate code,
 
 ** How to determine the origin of a bug
@@ -1572,7 +1571,7 @@ in a fresh instance of Emacs with varying amounts of Doom loaded (none at all,
 all of it, or somewhere in between). This can be helpful for isolating bugs to
 determine who you should report a bug to.
 
-If you can recreate a bug in vanilla Emacs than it should be reported to the
+If you can recreate a bug in vanilla Emacs then it should be reported to the
 developers of the relevant packages or, perhaps, the Emacs devs themselves.
 
 Otherwise, it is best to bring it up on the Doom Emacs issue list, rather than

@@ -4,8 +4,8 @@
 (package! dart-mode :pin "04fcd649f19d49390079fbf2920a10bf37f6a634")
 
 (when (featurep! +lsp)
-  (package! lsp-dart :pin "437c548d411c9e166b7c658fd45294775235fd5f"))
+  (package! lsp-dart :pin "b81b1eced51da99647830b829346ba2c4e1b23e0"))
 
 (when (featurep! +flutter)
-  (package! flutter :pin "78b3c572584c95220a40934bd67fd5e3fb096f96")
-  (package! hover :pin "6f9ed1a6517e3a43ef2deafc2f86c70b2abce008"))
+  (package! flutter :pin "696228a619f6078b16f9f77071112f6ad2a25c4e")
+  (package! hover :pin "3f07a181ec38531e01692e4073d6968363697cf8"))

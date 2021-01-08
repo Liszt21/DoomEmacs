@@ -79,6 +79,10 @@ uses a straight or package.el command directly).")
 
 (setq straight-base-dir doom-local-dir
       straight-repository-branch "develop"
+      ;; Since byte-code is rarely compatible across different versions of
+      ;; Emacs, it's best we build them in separate directories, per emacs
+      ;; version.
+      straight-build-dir (format "build-%s" emacs-version)
       straight-cache-autoloads nil ; we already do this, and better.
       ;; Doom doesn't encourage you to modify packages in place. Disabling this
       ;; makes 'doom sync' instant (once everything set up), which is much nicer
@@ -95,9 +99,7 @@ uses a straight or package.el command directly).")
       straight-vc-git-default-clone-depth 1
       ;; Prefix declarations are unneeded bulk added to our autoloads file. Best
       ;; we don't have to deal with them at all.
-      autoload-compute-prefixes nil
-      ;; We handle it ourselves
-      straight-fix-org nil)
+      autoload-compute-prefixes nil)
 
 (with-eval-after-load 'straight
   ;; `let-alist' is built into Emacs 26 and onwards
@@ -183,18 +185,34 @@ processed."
       (error "Failed to initialize package.el")))
   (when (or force-p (null doom-packages))
     (doom-log "Initializing straight.el")
-    (or (setq doom-disabled-packages nil
-              doom-packages (doom-package-list))
-        (error "Failed to read any packages"))
-    (dolist (package doom-packages)
-      (cl-destructuring-bind
-          (name &key recipe disable ignore &allow-other-keys) package
-        (unless ignore
-          (if disable
-              (cl-pushnew name doom-disabled-packages)
-            (when recipe
-              (straight-override-recipe (cons name recipe)))
-            (straight-register-package name)))))))
+    (setq doom-disabled-packages nil
+          doom-packages (doom-package-list))
+    (let (packages)
+      (dolist (package doom-packages)
+        (cl-destructuring-bind
+            (name &key recipe disable ignore shadow &allow-other-keys) package
+          (if ignore
+              (straight-override-recipe (cons name '(:type built-in)))
+            (if disable
+                (cl-pushnew name doom-disabled-packages)
+              (when shadow
+                (straight-override-recipe (cons shadow '(:local-repo nil)))
+                (let ((site-load-path (copy-sequence doom--initial-load-path))
+                      lib)
+                  (while (setq
+                          lib (locate-library (concat (symbol-name shadow) ".el")
+                                              nil site-load-path))
+                    (let ((lib (directory-file-name (file-name-directory lib))))
+                      (setq site-load-path (delete lib site-load-path)
+                            load-path (delete lib load-path))))))
+              (when recipe
+                (straight-override-recipe (cons name recipe)))
+              (appendq! packages (cons name (straight--get-dependencies name)))))))
+      (dolist (package (cl-delete-duplicates packages :test #'equal))
+        (straight-register-package package)
+        (let ((name (symbol-name package)))
+          (add-to-list 'load-path (directory-file-name (straight--build-dir name)))
+          (straight--load-package-autoloads name))))))
 
 
 ;;
@@ -389,7 +407,7 @@ ones."
 ;;; Module package macros
 
 (cl-defmacro package!
-    (name &rest plist &key built-in recipe ignore _type _pin _disable)
+    (name &rest plist &key built-in recipe ignore _type _pin _disable _shadow)
   "Declares a package and how to install it (if applicable).
 
 This macro is declarative and does not load nor install packages. It is used to
@@ -426,6 +444,10 @@ Accepts the following properties:
    inform help commands like `doom/help-packages' that this is a built-in
    package. If set to 'prefer, the package will not be installed if it is
    already provided by Emacs.
+ :shadow PACKAGE
+   Informs Doom that this package is shadowing a built-in PACKAGE; the original
+   package will be removed from `load-path' to mitigate conflicts, and this new
+   package will satisfy any dependencies on PACKAGE in the future.
 
 Returns t if package is successfully registered, and nil if it was disabled
 elsewhere."
@@ -460,8 +482,9 @@ elsewhere."
          (when-let (recipe (plist-get plist :recipe))
            (cl-destructuring-bind
                (&key local-repo _files _flavor
-                     _no-build _no-byte-compile _no-autoloads
-                     _type _repo _host _branch _remote _nonrecursive _fork _depth)
+                     _no-build _build _post-build _no-byte-compile
+                     _no-native-compile _no-autoloads _type _repo _host _branch
+                     _remote _nonrecursive _fork _depth)
                recipe
              ;; Expand :local-repo from current directory
              (when local-repo

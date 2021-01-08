@@ -44,7 +44,7 @@
                       #'yas-expand
                       (and (featurep! :completion company +tng)
                            (+company-has-completion-p))
-                      #'+company/complete)
+                      #'company-complete-common)
       :v [tab] (cmds! (and (bound-and-true-p yas-minor-mode)
                            (or (eq evil-visual-selection 'line)
                                (not (memq (char-after) (list ?\( ?\[ ?\{ ?\} ?\] ?\))))))
@@ -68,9 +68,10 @@
       (:after geiser-doc :map geiser-doc-mode-map
        :n "o"    #'link-hint-open-link)
 
-      (:after (evil-org evil-easymotion)
-       :map evil-org-mode-map
-       :m "gsh" #'+org/goto-visible)
+      (:unless (featurep! :input layout +bepo)
+        (:after (evil-org evil-easymotion)
+         :map evil-org-mode-map
+         :m "gsh" #'+org/goto-visible))
 
       (:when (featurep! :editor multiple-cursors)
        :prefix "gz"
@@ -131,7 +132,7 @@
          "C-p"     #'company-select-previous-or-abort
          "C-j"     #'company-select-next-or-abort
          "C-k"     #'company-select-previous-or-abort
-         "C-s"     (cmd! (company-search-abort) (company-filter-candidates))
+         "C-s"     #'company-filter-candidates
          [escape]  #'company-search-abort)))
 
       (:when (featurep! :completion ivy)
@@ -218,30 +219,31 @@
 
 ;;; :editor
 (map! (:when (featurep! :editor format)
-        :n "gQ" #'+format:region)
+       :n "gQ" #'+format:region)
 
       (:when (featurep! :editor rotate-text)
-        :n "!"  #'rotate-text)
+       :n "]r"  #'rotate-text
+       :n "[r"  #'rotate-text-backward)
 
       (:when (featurep! :editor multiple-cursors)
-        ;; evil-multiedit
-        :v  "R"     #'evil-multiedit-match-all
-        :n  "M-d"   #'evil-multiedit-match-symbol-and-next
-        :n  "M-D"   #'evil-multiedit-match-symbol-and-prev
-        :v  "M-d"   #'evil-multiedit-match-and-next
-        :v  "M-D"   #'evil-multiedit-match-and-prev
-        :nv "C-M-d" #'evil-multiedit-restore
-        (:after evil-multiedit
-          (:map evil-multiedit-state-map
-            "M-d"    #'evil-multiedit-match-and-next
-            "M-D"    #'evil-multiedit-match-and-prev
-            "RET"    #'evil-multiedit-toggle-or-restrict-region
-            [return] #'evil-multiedit-toggle-or-restrict-region)))
+       ;; evil-multiedit
+       :v  "R"     #'evil-multiedit-match-all
+       :n  "M-d"   #'evil-multiedit-match-symbol-and-next
+       :n  "M-D"   #'evil-multiedit-match-symbol-and-prev
+       :v  "M-d"   #'evil-multiedit-match-and-next
+       :v  "M-D"   #'evil-multiedit-match-and-prev
+       :nv "C-M-d" #'evil-multiedit-restore
+       (:after evil-multiedit
+        (:map evil-multiedit-state-map
+         "M-d"    #'evil-multiedit-match-and-next
+         "M-D"    #'evil-multiedit-match-and-prev
+         "RET"    #'evil-multiedit-toggle-or-restrict-region
+         [return] #'evil-multiedit-toggle-or-restrict-region)))
 
       (:when (featurep! :editor snippets)
-        ;; auto-yasnippet
-        :i  [C-tab] #'aya-expand
-        :nv [C-tab] #'aya-create))
+       ;; auto-yasnippet
+       :i  [C-tab] #'aya-expand
+       :nv [C-tab] #'aya-create))
 
 ;;; :tools
 (when (featurep! :tools eval)
@@ -274,6 +276,7 @@
             ((featurep! :completion helm)  #'helm-resume))
 
       :desc "Search for symbol in project" "*" #'+default/search-project-for-symbol-at-point
+      :desc "Search project"               "/" #'+default/search-project
 
       :desc "Find file in project"  "SPC"  #'projectile-find-file
       :desc "Jump to bookmark"      "RET"  #'bookmark-jump
@@ -314,6 +317,8 @@
         :desc "Switch buffer"           "B" #'switch-to-buffer)
        (:unless (featurep! :ui workspaces)
         :desc "Switch buffer"           "b" #'switch-to-buffer)
+       :desc "Clone buffer"                "c"   #'clone-indirect-buffer
+       :desc "Clone buffer other window"   "C"   #'clone-indirect-buffer-other-window
        :desc "Kill buffer"                 "d"   #'kill-current-buffer
        :desc "ibuffer"                     "i"   #'ibuffer
        :desc "Kill buffer"                 "k"   #'kill-current-buffer
@@ -337,37 +342,36 @@
       ;;; <leader> c --- code
       (:prefix-map ("c" . "code")
        (:when (and (featurep! :tools lsp) (not (featurep! :tools lsp +eglot)))
-          :desc "LSP Execute code action" "a" #'lsp-execute-code-action
-          :desc "LSP Organize imports" "o" #'lsp-organize-imports
-          (:when (featurep! :completion ivy)
-            :desc "Jump to symbol in current workspace" "j"   #'lsp-ivy-workspace-symbol
-            :desc "Jump to symbol in any workspace"     "J"   #'lsp-ivy-global-workspace-symbol)
-          (:when (featurep! :completion helm)
-            :desc "Jump to symbol in current workspace" "j"   #'helm-lsp-workspace-symbol
-            :desc "Jump to symbol in any workspace"     "J"   #'helm-lsp-global-workspace-symbol)
-          :desc "LSP Rename" "r" #'lsp-rename
-         (:after lsp-mode
-           :desc "LSP"                                   "l"   lsp-command-map))
-        (:when (featurep! :tools lsp +eglot)
-          :desc "LSP Execute code action" "a" #'eglot-code-actions
-          :desc "LSP Rename" "r" #'eglot-rename
-          :desc "LSP Find declaration" "j" #'eglot-find-declaration)
-        :desc "Compile"                               "c"   #'compile
-        :desc "Recompile"                             "C"   #'recompile
-        :desc "Jump to definition"                    "d"   #'+lookup/definition
-        :desc "Jump to references"                    "D"   #'+lookup/references
-        :desc "Evaluate buffer/region"                "e"   #'+eval/buffer-or-region
-        :desc "Evaluate & replace region"             "E"   #'+eval:replace-region
-        :desc "Format buffer/region"                  "f"   #'+format/region-or-buffer
-        :desc "Find implementations"                  "i"   #'+lookup/implementations
-        :desc "Jump to documentation"                 "k"   #'+lookup/documentation
-        :desc "Send to repl"                          "s"   #'+eval/send-region-to-repl
-        :desc "Find type definition"                  "t"   #'+lookup/type-definition
-        :desc "Delete trailing whitespace"            "w"   #'delete-trailing-whitespace
-        :desc "Delete trailing newlines"              "W"   #'doom/delete-trailing-newlines
-        :desc "List errors"                           "x"   #'flymake-show-diagnostics-buffer
-        (:when (featurep! :checkers syntax)
-          :desc "List errors"                         "x"   #'flycheck-list-errors))
+        :desc "LSP Execute code action" "a" #'lsp-execute-code-action
+        :desc "LSP Organize imports" "o" #'lsp-organize-imports
+        (:when (featurep! :completion ivy)
+         :desc "Jump to symbol in current workspace" "j"   #'lsp-ivy-workspace-symbol
+         :desc "Jump to symbol in any workspace"     "J"   #'lsp-ivy-global-workspace-symbol)
+        (:when (featurep! :completion helm)
+         :desc "Jump to symbol in current workspace" "j"   #'helm-lsp-workspace-symbol
+         :desc "Jump to symbol in any workspace"     "J"   #'helm-lsp-global-workspace-symbol)
+        :desc "LSP"                                  "l"   #'+default/lsp-command-map
+        :desc "LSP Rename"                           "r"   #'lsp-rename)
+       (:when (featurep! :tools lsp +eglot)
+        :desc "LSP Execute code action" "a" #'eglot-code-actions
+        :desc "LSP Rename" "r" #'eglot-rename
+        :desc "LSP Find declaration" "j" #'eglot-find-declaration)
+       :desc "Compile"                               "c"   #'compile
+       :desc "Recompile"                             "C"   #'recompile
+       :desc "Jump to definition"                    "d"   #'+lookup/definition
+       :desc "Jump to references"                    "D"   #'+lookup/references
+       :desc "Evaluate buffer/region"                "e"   #'+eval/buffer-or-region
+       :desc "Evaluate & replace region"             "E"   #'+eval:replace-region
+       :desc "Format buffer/region"                  "f"   #'+format/region-or-buffer
+       :desc "Find implementations"                  "i"   #'+lookup/implementations
+       :desc "Jump to documentation"                 "k"   #'+lookup/documentation
+       :desc "Send to repl"                          "s"   #'+eval/send-region-to-repl
+       :desc "Find type definition"                  "t"   #'+lookup/type-definition
+       :desc "Delete trailing whitespace"            "w"   #'delete-trailing-whitespace
+       :desc "Delete trailing newlines"              "W"   #'doom/delete-trailing-newlines
+       :desc "List errors"                           "x"   #'flymake-show-diagnostics-buffer
+       (:when (featurep! :checkers syntax)
+        :desc "List errors"                         "x"   #'flycheck-list-errors))
 
       ;;; <leader> f --- file
       (:prefix-map ("f" . "file")
@@ -375,8 +379,8 @@
        :desc "Copy this file"              "C"   #'doom/copy-this-file
        :desc "Find directory"              "d"   #'+default/dired
        :desc "Delete this file"            "D"   #'doom/delete-this-file
-       :desc "Find file in emacs.d"        "e"   #'+default/find-in-emacsd
-       :desc "Browse emacs.d"              "E"   #'+default/browse-emacsd
+       :desc "Find file in emacs.d"        "e"   #'doom/find-file-in-emacsd
+       :desc "Browse emacs.d"              "E"   #'doom/browse-in-emacsd
        :desc "Find file"                   "f"   #'find-file
        :desc "Find file from here"         "F"   #'+default/find-file-under-here
        :desc "Locate file"                 "l"   #'locate
@@ -407,6 +411,7 @@
         :desc "Jump to previous hunk"     "["   #'git-gutter:previous-hunk)
        (:when (featurep! :tools magit)
         :desc "Magit dispatch"            "/"   #'magit-dispatch
+        :desc "Magit file dispatch"       "."   #'magit-file-dispatch
         :desc "Forge dispatch"            "'"   #'forge-dispatch
         :desc "Magit switch branch"       "b"   #'magit-branch-checkout
         :desc "Magit status"              "g"   #'magit-status
@@ -452,6 +457,7 @@
 
       ;;; <leader> i --- insert
       (:prefix-map ("i" . "insert")
+       :desc "Emoji"                         "e"   #'emojify-insert-emoji
        :desc "Current file name"             "f"   #'+default/insert-file-path
        :desc "Current file path"             "F"   (cmd!! #'+default/insert-file-path t)
        :desc "Evil ex path"                  "p"   (cmd! (evil-ex "R!echo "))
@@ -499,15 +505,16 @@
          :desc "Insert (skipping org-capture)" "I" #'org-roam-insert-immediate
          :desc "Org Roam"                      "r" #'org-roam
          (:prefix ("d" . "by date")
-          :desc "Arbitrary date" "d" #'org-roam-dailies-date
-          :desc "Today"          "t" #'org-roam-dailies-today
-          :desc "Tomorrow"       "m" #'org-roam-dailies-tomorrow
-          :desc "Yesterday"      "y" #'org-roam-dailies-yesterday)))
+          :desc "Arbitrary date" "d" #'org-roam-dailies-find-date
+          :desc "Today"          "t" #'org-roam-dailies-find-today
+          :desc "Tomorrow"       "m" #'org-roam-dailies-find-tomorrow
+          :desc "Yesterday"      "y" #'org-roam-dailies-find-yesterday)))
 
        (:when (featurep! :lang org +journal)
         (:prefix ("j" . "journal")
-         :desc "New Entry"      "j" #'org-journal-new-entry
-         :desc "Search Forever" "s" #'org-journal-search-forever)))
+         :desc "New Entry"           "j" #'org-journal-new-entry
+         :desc "New Scheduled Entry" "J" #'org-journal-new-scheduled-entry
+         :desc "Search Forever"      "s" #'org-journal-search-forever)))
 
       ;;; <leader> o --- open
       (:prefix-map ("o" . "open")
@@ -641,12 +648,15 @@
        :desc "Search other project"         "P" #'+default/search-other-project
        :desc "Jump to mark"                 "r" #'evil-show-marks
        :desc "Search buffer"                "s" #'+default/search-buffer
+       :desc "Search buffer for thing at point" "S" #'swiper-isearch-thing-at-point
        :desc "Dictionary"                   "t" #'+lookup/dictionary-definition
        :desc "Thesaurus"                    "T" #'+lookup/synonyms)
 
       ;;; <leader> t --- toggle
       (:prefix-map ("t" . "toggle")
        :desc "Big mode"                     "b" #'doom-big-font-mode
+       (:when (featurep! :ui fill-column)
+        :desc "Fill Column Indicator"       "c" #'+fill-column/toggle)
        :desc "Flymake"                      "f" #'flymake-mode
        (:when (featurep! :checkers syntax)
         :desc "Flycheck"                   "f" #'flycheck-mode)
@@ -661,8 +671,10 @@
        (:when (featurep! :lang org +present)
         :desc "org-tree-slide mode"        "p" #'org-tree-slide-mode)
        :desc "Read-only mode"               "r" #'read-only-mode
-       (:when (featurep! :checkers spell)
-        :desc "Flyspell"                   "s" #'flyspell-mode)
+       (:when (and (featurep! :checkers spell) (not (featurep! :checkers spell +flyspell)))
+        :desc "Spell checker"              "s" #'spell-fu-mode)
+       (:when (featurep! :checkers spell +flyspell)
+        :desc "Spell checker"              "s" #'flyspell-mode)
        (:when (featurep! :lang org +pomodoro)
         :desc "Pomodoro timer"             "t" #'org-pomodoro)
        :desc "Soft line wrapping"           "w" #'visual-line-mode
